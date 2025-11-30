@@ -87,9 +87,13 @@ def process_block(block):
     # Regex pattern: start of string (^), one or more digits (\d+), dot (\.), space (\s)
     ordered_list_pattern = re.compile(r"^\d+\.\s")
     ordered_sublist_pattern = re.compile(r"^\d+\.\d+")
+    ordered_subsublist_pattern = re.compile(r"^\d+\.\d+\.\d+")
+
 
     
     # 1. Check for [DIGITAL] Heading (Highest Priority)
+    if block['type'] == 'bold' and ordered_subsublist_pattern.match(text):
+        return "### " + text
     if block['type'] == 'bold' and ordered_sublist_pattern.match(text):
         # Remove the numbering part (e.g., "1.1. ")
         # cleaned_text = re.sub(ordered_sublist_pattern, "## ", text, count=1)
@@ -178,6 +182,14 @@ def merge_formatted_blocks(page_id, formatted_words):
     # Ensure words are sorted by position before merging (Top then X-axis)
     # The calling function (pdf_to_markdown_pipeline) usually does this, 
     # but it's good practice to ensure here as well.
+
+    new_words = []
+    for word in formatted_words:
+        if word['text'] == "\n":
+            continue
+        new_words.append(word)
+    formatted_words = new_words
+    
     formatted_words.sort(key=lambda w: (w['top'], w['x0']))
 
 
@@ -185,11 +197,21 @@ def merge_formatted_blocks(page_id, formatted_words):
     list_words = [w['text'] for w in formatted_words]
     # if page_id == 4:
     #     import ipdb; ipdb.set_trace()
-    
     for i, word in enumerate(formatted_words):
         # Check if this word is on the same line as the previous word (Y coordinate check)
-        is_same_line = (i > 0 and abs(word['top'] - formatted_words[i-1]['top']) < 7)
+        is_same_line = False
+        if i > 0:
+            if abs(word['top'] - formatted_words[i-1]['top']) < 7:
+                is_same_line = True
+            elif formatted_words[i-1]['x1'] > 507 and not word['text'][0].isupper():
+                # Special case: if previous word is at the far right and current word starts with lowercase,
+                # consider it as same line (likely a line continuation)
+                is_same_line = True
+                # if page_id == 2:
+                    # print("Special line continuation detected:", formatted_words[i-1]['text'], "->", word['text'])
+                    # print(formatted_words[i-1], word, formatted_words[i+1])
         
+                
         if current_block is None:
             # Start the very first block
             current_block = {'type': word['type'], 'words': [word['text']]}
@@ -250,6 +272,10 @@ def merge_formatted_blocks(page_id, formatted_words):
         })
         
     return result_blocks
+
+
+
+
 
 # --- 4. MAIN PIPELINE ---
 
@@ -322,7 +348,7 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
             
             for word in all_formatted_words:
                 # Check for line break (if current word's top is significantly different from the last word's bottom)
-                if current_line_words and (word['top'] > last_bottom + 3): 
+                if current_line_words and (word['top'] > last_bottom + 7): 
                     # Process the previous line
                     if not current_line_words: continue
 
@@ -340,9 +366,6 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
                     if is_external_text is not None:
                         text_blocks_to_merge.extend(current_line_words)
                         text_blocks_to_merge.append({'text': '\n', 'type': 'line_break', 'top': line_bottom, 'bottom': line_bottom, 'x0': 0, 'x1': 0})
-                    if "Điểm quyết định" in " ".join([w['text'] for w in current_line_words]):
-                        print("Found special line:", " ".join([w['text'] for w in current_line_words]))
-                        print(is_external_text is None)
 
                     current_line_words = []
                 
@@ -378,6 +401,8 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
             
             # markdown_content.append(f"## Page {i + 1}\n")
             markdown_content.extend(page_markdown)
+            # if i == 2:
+            #     break
     markdown_content = "\n".join(markdown_content)
     filename = pdf_path.split('/')[-1].split('.pdf')[0]
     markdown_content = "# " + filename+"\n\n" + markdown_content
@@ -395,17 +420,17 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
 
 # --- EXECUTION ---
 if __name__ == "__main__":
-    input_pdf_file = "./sample/gt/Public_257.pdf" 
-    output_md_file = input_pdf_file.replace('.pdf', '.md').replace("gt","pred")
-    pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
+    # input_pdf_file = "./sample/gt/Public_017.pdf" 
+    # output_md_file = input_pdf_file.replace('.pdf', '.md').replace("gt","pred")
+    # pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
 
-    # folder_pdf = "./data/var_train/pdf/"
-    # folder_md = "./data/var_train/markdown_pred/"
-    # os.makedirs(folder_md, exist_ok=True)
+    folder_pdf = "./data/var_train/pdf/"
+    folder_md = "markdown_pred/"
+    os.makedirs(folder_md, exist_ok=True)
     
-    # # Ensure 'input.pdf' exists in the same directory
-    # list_pdf = os.listdir(folder_pdf)
-    # for pdf_file in list_pdf:
-    #     input_pdf_file = os.path.join(folder_pdf, pdf_file)
-    #     output_md_file = os.path.join(folder_md, pdf_file.replace('.pdf', '.md'))
-    #     pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
+    # Ensure 'input.pdf' exists in the same directory
+    list_pdf = os.listdir(folder_pdf)
+    for pdf_file in list_pdf:
+        input_pdf_file = os.path.join(folder_pdf, pdf_file)
+        output_md_file = os.path.join(folder_md, pdf_file.replace('.pdf', '.md'))
+        pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
