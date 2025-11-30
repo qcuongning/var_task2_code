@@ -117,37 +117,35 @@ def transform(pdf_dir: str, md_dir: str):
     file_list = glob(f"{pdf_dir}/*.pdf")
 
     for pdf in file_list:
-        try:
-            print(f"Đang chuyển đổi và xử lý hậu kỳ {os.path.basename(pdf)}...")
+        print(f"Đang chuyển đổi và xử lý hậu kỳ {os.path.basename(pdf)}...")
+        
+        # BƯỚC 1: Chuyển đổi PDF sang Markdown thô
+        md_text_raw = pymupdf4llm.to_markdown(pdf)
+        
+        # BƯỚC 2: Hậu xử lý (Post-processing)
+        md_text_processed = md_text_raw
+        
+        # 2.1. Chuyển đổi bảng Markdown thô sang HTML (cần làm trước để khối HTML được tạo)
+        md_text_processed = convert_pipe_table_to_html(md_text_processed)
+        
+        # 2.2. Loại bỏ tiêu đề đầu trang
+        md_text_processed = remove_initial_header_content(md_text_processed)
+        
+        # 2.3. Sửa lỗi ký tự Unicode và Toán học
+        md_text_processed = fix_unicode_and_math_errors(md_text_processed)
+        
+        # 2.4. Thêm khai báo ngôn ngữ cho các code block
+        md_text_processed = add_language_to_code_blocks(md_text_processed, language='cpp')
+        
+        # Ghi nội dung Markdown đã xử lý
+        output_filename = os.path.basename(pdf).replace('.pdf', '.md')
+        output_filepath = os.path.join(md_dir, output_filename)
+        
+        with open(output_filepath, 'w', encoding='utf-8') as f:
+            f.write(md_text_processed)
+        print(f"Đã lưu thành công tới {output_filepath}")
             
-            # BƯỚC 1: Chuyển đổi PDF sang Markdown thô
-            md_text_raw = pymupdf4llm.to_markdown(pdf)
-            
-            # BƯỚC 2: Hậu xử lý (Post-processing)
-            md_text_processed = md_text_raw
-            
-            # 2.1. Chuyển đổi bảng Markdown thô sang HTML (cần làm trước để khối HTML được tạo)
-            md_text_processed = convert_pipe_table_to_html(md_text_processed)
-            
-            # 2.2. Loại bỏ tiêu đề đầu trang
-            md_text_processed = remove_initial_header_content(md_text_processed)
-            
-            # 2.3. Sửa lỗi ký tự Unicode và Toán học
-            md_text_processed = fix_unicode_and_math_errors(md_text_processed)
-            
-            # 2.4. Thêm khai báo ngôn ngữ cho các code block
-            md_text_processed = add_language_to_code_blocks(md_text_processed, language='cpp')
-            
-            # Ghi nội dung Markdown đã xử lý
-            output_filename = os.path.basename(pdf).replace('.pdf', '.md')
-            output_filepath = os.path.join(md_dir, output_filename)
-            
-            with open(output_filepath, 'w', encoding='utf-8') as f:
-                f.write(md_text_processed)
-            print(f"Đã lưu thành công tới {output_filepath}")
-            
-        except Exception as e:
-            print(f"Lỗi xử lý {pdf}: {e}")
+
 
 if __name__ == "__main__":
     fire.Fire(transform)
