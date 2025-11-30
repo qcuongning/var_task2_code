@@ -403,7 +403,7 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
             markdown_content.extend(page_markdown)
             # if i == 2:
             #     break
-    markdown_content = "\n".join(markdown_content)
+    markdown_content = "\n\n".join(markdown_content)
     filename = pdf_path.split('/')[-1].split('.pdf')[0]
     markdown_content = "# " + filename+"\n\n" + markdown_content
     markdown_content = markdown_content.replace("foo", "")
@@ -420,17 +420,17 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
 
 # --- EXECUTION ---
 if __name__ == "__main__":
-    # input_pdf_file = "./sample/gt/Public_017.pdf" 
-    # output_md_file = input_pdf_file.replace('.pdf', '.md').replace("gt","pred")
-    # pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
+    input_pdf_file = "./sample/gt/Public_257.pdf" 
+    output_md_file = input_pdf_file.replace('.pdf', '.md').replace("gt","pred")
+    pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
 
-    folder_pdf = "./data/var_train/pdf/"
-    folder_md = "markdown_pred/"
-    os.makedirs(folder_md, exist_ok=True)
+    # folder_pdf = "./data/var_train/pdf/"
+    # folder_md = "markdown_pred/"
+    # os.makedirs(folder_md, exist_ok=True)
     
-    # Ensure 'input.pdf' exists in the same directory
-    list_pdf = os.listdir(folder_pdf)
-    for pdf_file in list_pdf:
-        input_pdf_file = os.path.join(folder_pdf, pdf_file)
-        output_md_file = os.path.join(folder_md, pdf_file.replace('.pdf', '.md'))
-        pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
+    # # Ensure 'input.pdf' exists in the same directory
+    # list_pdf = os.listdir(folder_pdf)
+    # for pdf_file in list_pdf:
+    #     input_pdf_file = os.path.join(folder_pdf, pdf_file)
+    #     output_md_file = os.path.join(folder_md, pdf_file.replace('.pdf', '.md'))
+    #     pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
