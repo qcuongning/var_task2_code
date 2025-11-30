@@ -38,7 +38,7 @@ def main():
                 out.write_text("", encoding="utf-8")
                 print(f"No files found in {src}. Created empty {out}.")
                 return
-        csv_answer = pd.read_csv("../../dataset/Public_test_data/public_test_data/question.csv")
+        csv_answer = pd.read_csv("../dataset/Public_test_data/public_test_data/question.csv")
         
 
         with out.open("w", encoding="utf-8", errors="replace") as w:
