@@ -278,18 +278,58 @@ def merge_formatted_blocks(page_id, formatted_words):
 
 
 # --- 4. MAIN PIPELINE ---
-
+import io
+from PIL import Image
 def pdf_to_markdown_pipeline(pdf_path, output_path):
     """
     The main pipeline to convert PDF content to Markdown, handling tables,
     formatting, and positional stitching.
     """
+    folder_image = output_path.replace('.md','') + "/images"
+    os.makedirs(folder_image, exist_ok=True)
+
     markdown_content = []
     
     with pdfplumber.open(pdf_path) as pdf:
         print(f"Processing file: {pdf_path} with {len(pdf.pages)} pages...")
+        id_image = 1
         
         for i, page in enumerate(pdf.pages):
+            images_block = []
+
+            # if i != 0:
+            #     continue
+
+            # extract image
+            imgs = page.images
+            for id_img, img in enumerate(imgs):
+                if img['top'] < 70:
+                    continue
+                content = f"|<image_{id_image}>|"
+                
+                raw = img["stream"].get_data()
+                # open with Pillow to decode
+                try:
+                    image = Image.open(io.BytesIO(raw))
+                except Exception as e:
+                    print(f"Error opening image {id_image} on page {i+1}: {e}")
+                    continue
+                images_block.append({
+                    'type': 'image',
+                    'top': img['top'],
+                    'content': content
+                })
+
+                # choose filename
+                filename = f"{folder_image}/image_{id_image}.png"
+                
+
+                image.save(filename)
+
+                id_image += 1
+
+            area_table = 0
+            area_page = page.width * page.height
             
             # --- Step 1: Extract Tables and Text Lines ---
             tables = page.find_tables()
@@ -309,7 +349,13 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
                     'top': table.bbox[1], 
                     'content': pdfplumber_table_to_markdown(table)
                 })
-
+                bbox = table.bbox
+                width = bbox[2] - bbox[0]
+                height = bbox[3] - bbox[1]
+                area_table += (width*height)
+            # print("page", i, "area table", area_table/area_page)
+            # if area_table/area_page > 0.5:
+            #     treat_page_with_llm(page)
             # b. Filter and Group Text Lines
             # The text processing is complex:
             # 1. We must process 'words' to get formatting information.
@@ -386,7 +432,7 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
             # The merge_formatted_blocks function implicitly handles line breaks and formatting
             text_blocks = merge_formatted_blocks(i, text_blocks_to_merge)
             content_blocks.extend(text_blocks)
-        
+            content_blocks.extend(images_block)
 
             # --- Step 5: Stitch Content Blocks by Position ---
             
@@ -404,6 +450,9 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
             # if i == 2:
             #     break
     markdown_content = "\n\n".join(markdown_content)
+    markdown_content = markdown_content.replace("\n- ", "\n\- ")
+    markdown_content = markdown_content.replace("\n+ ", "\n\+ ")
+
     filename = pdf_path.split('/')[-1].split('.pdf')[0]
     markdown_content = "# " + filename+"\n\n" + markdown_content
     markdown_content = markdown_content.replace("foo", "")
@@ -420,17 +469,18 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
 
 # --- EXECUTION ---
 if __name__ == "__main__":
-    input_pdf_file = "./sample/gt/Public_257.pdf" 
-    output_md_file = input_pdf_file.replace('.pdf', '.md').replace("gt","pred")
-    pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
+    # input_pdf_file = "./sample/gt/Public_257.pdf" 
+    # output_md_file = input_pdf_file.replace('.pdf', '.md').replace("gt","pred")
+    # pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
 
-    # folder_pdf = "./data/var_train/pdf/"
-    # folder_md = "markdown_pred/"
-    # os.makedirs(folder_md, exist_ok=True)
+    folder_pdf = "./data/var_train/pdf_full/"
+    folder_md = "./output/full_plumber_pred/"
     
-    # # Ensure 'input.pdf' exists in the same directory
-    # list_pdf = os.listdir(folder_pdf)
-    # for pdf_file in list_pdf:
-    #     input_pdf_file = os.path.join(folder_pdf, pdf_file)
-    #     output_md_file = os.path.join(folder_md, pdf_file.replace('.pdf', '.md'))
-    #     pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
+    os.makedirs(folder_md, exist_ok=True)
+    
+    # Ensure 'input.pdf' exists in the same directory
+    list_pdf = os.listdir(folder_pdf)
+    for pdf_file in list_pdf:
+        input_pdf_file = os.path.join(folder_pdf, pdf_file)
+        output_md_file = os.path.join(folder_md, pdf_file.replace('.pdf', '.md'))
+        pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
