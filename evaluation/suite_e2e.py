@@ -25,12 +25,16 @@ def e2e_evaluate(gold_dir, pred_dir, result_json):
     all_results = dict()
     avg_results = dict()
     gold_file_list = glob(f"{gold_dir}/*.md")
+    pred_file_list = glob(f"{pred_dir}/*.md")
 
-    for gold_md in gold_file_list:
+    dict_edit_scores = dict()
+
+    for pred_md in pred_file_list:
+        gold_md = os.path.join(gold_dir, pred_md.split('/')[-1])
         with open(gold_md, 'r') as f:
             gold_md_content = f.read()
         
-        pred_md = os.path.join(pred_dir, gold_md.split('/')[-1])
+        # pred_md = os.path.join(pred_dir, gold_md.split('/')[-1])
 
         try:
             with open(pred_md, 'r') as f:
@@ -39,7 +43,7 @@ def e2e_evaluate(gold_dir, pred_dir, result_json):
             pred_md_content = ""
         
         mmd_result = file_evaluate(gold_md_content, pred_md_content)
-
+        dict_edit_scores[gold_md.split('/')[-1]] = mmd_result['plain'].metric_dict['metrics']['edit_dist_sim']
         for type in mmd_result:
             if type not in all_results.keys():
                 all_results[type] = dict()
@@ -84,7 +88,14 @@ def e2e_evaluate(gold_dir, pred_dir, result_json):
             'seg_sp': avg_results['order']['segment']['spearmanr'],
             'word_sp': avg_results['order']['word']['spearmanr'],
             }         
-    
+    print("Final averaged results:", result_dict)
+
+    print("top 5 lowest edit distance scores:")
+    sorted_dict = dict(sorted(dict_edit_scores.items(), key=lambda item: item[1]))
+    for i, key in enumerate(sorted_dict.keys()):
+        if i>=5:
+            break
+        print(f"{key}: {sorted_dict[key]}")
     with open(result_json, 'w') as f:
         json.dump(result_dict, f)
      

@@ -3,7 +3,7 @@ import pdfplumber
 import pandas as pd
 import numpy as np
 import re
-
+pd.set_option('future.no_silent_downcasting', True)
 # --- 1. FORMATTING & HEADING LOGIC ---
 
 def is_bold(font_name):
@@ -237,31 +237,6 @@ def merge_formatted_blocks(page_id, formatted_words):
         
         else:
             current_block['words'].append(word['text'])
-            # Same line and same format, append word to current block
-            # Ensure we maintain x0 positions for sorting when inserting new words
-            # Initialize parallel _x0s list if not present (attempt to recover x0 for existing words)
-            # if '_x0s' not in current_block:
-            #     existing_x0s = []
-            #     for existing_text in current_block['words']:
-            #         found_x0 = None
-            #         # try to find a matching formatted word on the same line to get its x0
-            #         for fw in formatted_words:
-            #             if fw['text'] == existing_text and abs(fw['top'] - block_start_top) < 8:
-            #                 found_x0 = fw.get('x0', 0)
-            #                 break
-            #         existing_x0s.append(found_x0 if found_x0 is not None else 0)
-            #     current_block['_x0s'] = existing_x0s
-
-            # # Find insertion index based on word['x0']
-            # insert_idx = len(current_block['words'])
-            # for idx, existing_x0 in enumerate(current_block['_x0s']):
-            #     if word['x0'] < existing_x0:
-            #         insert_idx = idx
-            #         break
-
-            # Insert text and corresponding x0 at the computed position
-            # current_block['words'].insert(insert_idx, word['text'])
-            # current_block['_x0s'].insert(insert_idx, word['x0'])
     
     # Process the very last block after the loop ends
     if current_block:
@@ -274,6 +249,53 @@ def merge_formatted_blocks(page_id, formatted_words):
     return result_blocks
 
 
+def treat_page_with_llm(page):
+    page_image = page.to_image(resolution=300)
+    # Load and do a quick pass over "sample/result.mmd" for further processing
+    result_mmd_path = "sample/result.mmd"
+
+    prompt = "<image>\n<|grounding|>Convert the document to markdown. "
+    image_file ="temp.png"
+    page_image.save(image_file)
+    output_path = "temp_result"
+    os.makedirs(output_path, exist_ok=True)
+
+
+    res = model.infer(tokenizer, prompt=prompt, image_file=image_file, output_path = output_path, 
+                      base_size = 1024, image_size = 640, crop_mode=True, save_results = True, test_compress = True)
+
+
+
+    # Read file
+    with open(os.path.join(output_path, "result.mmd"), "r", encoding="utf-8") as f:
+        result_mmd = f.read()
+
+    # Basic derived variables for downstream cells
+    result_mmd_lines = result_mmd.splitlines()
+    result_mmd_blocks = result_mmd.split("\n\n")
+
+    # Find referenced image placeholders like <image_1>
+    image_refs = re.findall(r"<image_(\d+)>", result_mmd)
+    image_refs = sorted(set(image_refs), key=lambda s: int(s))
+
+    table_refs = re.findall(r"<table>", result_mmd)
+
+    fintune_blocks = []
+    for block in result_mmd_blocks:
+        if "<table>" in block and "VIETTEL AI RACE" in block:
+            continue
+        if "<table>" in block:
+            # Replace with processed table markdown
+            block = block.replace("<td>", "<td><em>")
+            block = block.replace("<tr>", "<tr>\n")
+            block = block.replace("<table>", "<table>\n")
+
+
+
+            block = block.replace("</td>", "</em></td>\n")
+        fintune_blocks.append(block)
+    mkdown = "\n\n".join(fintune_blocks)
+    return mkdown
 
 
 
@@ -291,13 +313,13 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
     markdown_content = []
     
     with pdfplumber.open(pdf_path) as pdf:
-        print(f"Processing file: {pdf_path} with {len(pdf.pages)} pages...")
+        print(f"\n******Processing file: {pdf_path} with {len(pdf.pages)} pages...\n")
         id_image = 1
         
         for i, page in enumerate(pdf.pages):
             images_block = []
 
-            # if i != 0:
+            # if i != 15:
             #     continue
 
             # extract image
@@ -353,9 +375,12 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
                 width = bbox[2] - bbox[0]
                 height = bbox[3] - bbox[1]
                 area_table += (width*height)
-            # print("page", i, "area table", area_table/area_page)
-            # if area_table/area_page > 0.5:
-            #     treat_page_with_llm(page)
+            if area_table/area_page > 0.38:
+                print("page", i, "area table", area_table/area_page, "processing with llm")
+
+                page_content = treat_page_with_llm(page)
+                markdown_content.append(page_content)
+                continue
             # b. Filter and Group Text Lines
             # The text processing is complex:
             # 1. We must process 'words' to get formatting information.
@@ -473,13 +498,22 @@ if __name__ == "__main__":
     # output_md_file = input_pdf_file.replace('.pdf', '.md').replace("gt","pred")
     # pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
 
-    folder_pdf = "./data/var_train/pdf_full/"
-    folder_md = "./output/full_plumber_pred/"
+    folder_pdf = "./data/var_train/pdf"
+    folder_md = "./markdown_pred/"
     
     os.makedirs(folder_md, exist_ok=True)
-    
+    from transformers import AutoModel, AutoTokenizer
+    import torch
+    import os
+    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+    model_name = '../Deepseek_OCR'
+
+    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    model = AutoModel.from_pretrained(model_name, _attn_implementation='flash_attention_2', trust_remote_code=True, use_safetensors=True)
+    model = model.eval().cuda().to(torch.bfloat16)
     # Ensure 'input.pdf' exists in the same directory
     list_pdf = os.listdir(folder_pdf)
+    list_pdf.sort()
     for pdf_file in list_pdf:
         input_pdf_file = os.path.join(folder_pdf, pdf_file)
         output_md_file = os.path.join(folder_md, pdf_file.replace('.pdf', '.md'))
