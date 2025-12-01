@@ -375,12 +375,12 @@ def pdf_to_markdown_pipeline(pdf_path, output_path):
                 width = bbox[2] - bbox[0]
                 height = bbox[3] - bbox[1]
                 area_table += (width*height)
-            if area_table/area_page > 0.38:
-                print("page", i, "area table", area_table/area_page, "processing with llm")
+            # if area_table/area_page > 0.38:
+            #     print("page", i, "area table", area_table/area_page, "processing with llm")
 
-                page_content = treat_page_with_llm(page)
-                markdown_content.append(page_content)
-                continue
+            #     page_content = treat_page_with_llm(page)
+            #     markdown_content.append(page_content)
+            #     continue
             # b. Filter and Group Text Lines
             # The text processing is complex:
             # 1. We must process 'words' to get formatting information.
@@ -498,19 +498,19 @@ if __name__ == "__main__":
     # output_md_file = input_pdf_file.replace('.pdf', '.md').replace("gt","pred")
     # pdf_to_markdown_pipeline(input_pdf_file, output_md_file)
 
-    folder_pdf = "./data/var_train/pdf"
+    folder_pdf = "./data/var_test/pdf"
     folder_md = "./markdown_pred/"
     
     os.makedirs(folder_md, exist_ok=True)
-    from transformers import AutoModel, AutoTokenizer
-    import torch
-    import os
-    os.environ["CUDA_VISIBLE_DEVICES"] = '0'
-    model_name = '../Deepseek_OCR'
+    # from transformers import AutoModel, AutoTokenizer
+    # import torch
+    # import os
+    # os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+    # model_name = '../Deepseek_OCR'
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    model = AutoModel.from_pretrained(model_name, _attn_implementation='flash_attention_2', trust_remote_code=True, use_safetensors=True)
-    model = model.eval().cuda().to(torch.bfloat16)
+    # tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    # model = AutoModel.from_pretrained(model_name, _attn_implementation='flash_attention_2', trust_remote_code=True, use_safetensors=True)
+    # model = model.eval().cuda().to(torch.bfloat16)
     # Ensure 'input.pdf' exists in the same directory
     list_pdf = os.listdir(folder_pdf)
     list_pdf.sort()
